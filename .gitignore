@@ -62,6 +62,14 @@ coverage.xml
 *.log
 *.pot
 
+# Runtime-mutated experiment configs.
+# Note: the tracked baseline YAMLs under configs/APN/ still need a local
+# `git update-index --skip-worktree` if you want their runtime rewrites hidden.
+configs/**/*.yaml.tmp
+configs/**/*.yaml.bak
+configs/**/*.yaml.orig
+configs/**/*.yaml.local
+
 # Sphinx documentation
 docs/_build/
 models/CSDI/noise
