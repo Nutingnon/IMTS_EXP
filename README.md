@@ -4,9 +4,17 @@
 
 This code is the official PyTorch implementation of our AAAI'26 paper: [APN](https://arxiv.org/abs/2505.11250): Rethinking Irregular Time Series Forecasting: A Simple yet Effective Baseline.
 
-If you find this project helpful, please don't forget to give it a ⭐ Star to show your support. Thank you!
-
 🚩 News (2025.12) APN has been accepted by **AAAI 2026**.
+
+## Repository Status
+
+This repository is runnable in the current workspace, but the irregular-data preprocessing path is not yet a faithful reproduction of the paper protocol for every dataset.
+
+- End-to-end APN training and testing has been verified locally.
+- The main reproducibility issue is preprocessing mismatch rather than a model crash.
+- In particular, the current P12 and MIMIC-III paths contain normalization behavior that is not suitable for fair paper-level comparison.
+
+For the current reproduction status, confirmed discrepancies, and next-step fixes, see [REPRODUCTION_DISCREPANCIES.md](./REPRODUCTION_DISCREPANCIES.md).
 
 ## Introduction
 
@@ -25,38 +33,45 @@ The comparisons between Fixed Patching and our Adaptive Patching: (a) Fixed Patc
 ## Quickstart
 
 > [!IMPORTANT]
-> This project is fully tested under Python 3.11.13. It is recommended that you set the Python version to 3.11.13.
+> The original repository recommendation is Python 3.11.13. In this workspace, the APN pipeline has also been verified to run under Python 3.12.9 with Torch 2.9.1 and CUDA available.
 
 ### 1. Requirements
 
-Given a python environment (**note**: this project is fully tested under python 3.11.13 and PyTorch 2.6.0+cu124), install the dependencies with the following command:
+Given a python environment, install the dependencies with the following command:
 
 ```shell
 pip install -r requirements.txt
 ```
 
+In the current workspace, the successful verification run only required adding missing packages rather than downgrading the whole environment.
+
 ### 2. Data Preparation
 
-Our model is evaluated on four widely used irregular time series datasets: **PhysioNet**, **MIMIC**, **HumanActivity**, and **USHCN**. The data preparation process differs slightly depending on the dataset's access restrictions.
+APN includes four irregular time series benchmarks in the current codebase: **PhysioNet 2012 (P12)**, **MIMIC-III**, **HumanActivity**, and **USHCN**. The loading path is not identical across datasets, and the current preprocessing behavior matters for reproducibility.
 
 #### 2.1 Public Datasets (Auto-Download)
-For **HumanActivity**, **PhysioNet ('12)**, and **USHCN**, you generally do not need to prepare the data manually. Our code allows for automatic downloading and preprocessing upon the first run.
+For **HumanActivity**, **PhysioNet 2012**, and **USHCN**, the project can prepare data automatically on first use, but the storage locations differ.
 
 - **HumanActivity**: The script will automatically download and process the data. The processed files will be stored in:
   ```
   ./storage/datasets/HumanActivity
   ```
-- **PhysioNet & USHCN**: These datasets are managed via the `tsdm` library. They will be automatically downloaded and cached in your home directory:
+- **PhysioNet 2012 & USHCN**: These datasets are managed via the vendored `tsdm` path and are cached under your home directory:
   ```
   ~/.tsdm/datasets/  # Processed data
   ~/.tsdm/rawdata/   # Raw data
   ```
 
+Current code note:
+
+- P12 currently uses `Standardizer()` for feature values and `MinMaxScaler()` for time inside `data/dependencies/tsdm/tasks/P12.py`.
+- That value standardization is fitted on the full dataset rather than the training split only, so current P12 results are affected by data leakage.
+
 #### 2.2 MIMIC Dataset
 Due to privacy regulations, the **MIMIC** dataset requires credentialed access. Please follow the steps below to prepare it manually:
 
 1.  **Request Access**: Obtain the raw data from [MIMIC](https://physionet.org/content/mimiciii/1.4/). You do not need to extract the `.csv.gz` files.
-2.  **Preprocessing**: We adopt the standard preprocessing pipeline from **gru_ode_bayes**.
+2.  **Preprocessing**: The current APN code expects the `gru_ode_bayes` preprocessing output `complete_tensor.csv`.
     - Clone the [gru_ode_bayes](https://github.com/edebrouwer/gru_ode_bayes/tree/master/data_preproc/MIMIC) repository.
     - Follow their instructions to generate the `complete_tensor.csv` file.
 3.  **File Placement**: Move the generated `complete_tensor.csv` to the specific path expected by our dataloader (create folders if they don't exist):
@@ -68,24 +83,60 @@ mv /path/to/your/complete_tensor.csv ~/.tsdm/rawdata/MIMIC_III_DeBrouwer2019/
 
 Once the file is in place, our code will handle the final formatting (generating `.parquet` files) automatically during the first training session.
 
+Current code note:
+
+- The APN MIMIC path consumes `VALUENORM` from `complete_tensor.csv`.
+- In the current pipeline, that normalized value path is derived from full-dataset statistics upstream of APN training.
+- This means current MIMIC results should not be treated as a clean train-only-normalized reproduction.
+
+### 2.3 Reproducibility Note on Normalization
+
+The main reproduction gap in this repository is the normalization protocol for irregular datasets.
+
+- `t-PatchGNN` comparisons typically assume train-set-fitted Min-Max normalization for relevant datasets.
+- The current APN code path does not match that behavior consistently.
+- Planned follow-up work is to add explicit normalization modes for irregular datasets, including:
+  - no normalization
+  - train-only normalization
+
+Those options are not fully implemented yet. See [REPRODUCTION_DISCREPANCIES.md](./REPRODUCTION_DISCREPANCIES.md) before interpreting P12 or MIMIC results as paper-level comparisons.
+
 ### 3. Train and evaluate model
 
 - To see the model structure of APN, [click here](./models/APN.py).
-- We provide all the experiment scripts for APN and other baselines under the folder `./scripts`. For example you can reproduce the experiment results on the USHCN dataset as the following script:
+- We provide experiment scripts for APN and multiple baselines under `./scripts`.
+- The scripts are runnable, but some irregular-dataset scripts are not yet protocol-aligned with the paper comparisons.
+- For a verified local APN run, the P12 launcher is the clearest starting point:
 
 ```shell
 chmod +x ./scripts/APN/P12.sh
 ./scripts/APN/P12.sh
 ```
 
+For a shorter local validation run:
+
+```shell
+RUN_PROFILE=medium ./scripts/APN/P12.sh
+```
+
 ## Results
 
 ### Main Results
-Extensive experiments on 4 real-world datasets (PhysioNet, MIMIC, HumanActivity, USHCN) demonstrate that APN outperforms existing state-of-the-art (SOTA) methods such as GraFITi and tPatchGNN in both MSE and MAE metrics.
+The paper reports strong results on PhysioNet, MIMIC, HumanActivity, and USHCN. However, the current repository state in this workspace should be interpreted with care:
+
+- the APN pipeline runs successfully
+- the current preprocessing path is not fully aligned with the official `t-PatchGNN` protocol
+- therefore, local reruns should not be assumed to match the paper tables without further preprocessing fixes
 
 <div align="center">
 <img alt="Performance" src="figs/performance.png" width="90%"/>
 </div>
+
+Local verified status in this workspace:
+
+- P12 medium-profile run completed successfully
+- observed metrics were `MAE = 0.37021493911743164`, `MSE = 0.3146660625934601`
+- these values confirm executability, not faithful paper-level reproducibility
 
 ### Efficiency Analysis
 Comparison of computational efficiency on the USHCN dataset. APN exhibits significant advantages in **Peak GPU Memory**, **Parameters**, **Training Time**, and **Inference Time**.
