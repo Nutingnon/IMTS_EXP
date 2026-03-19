@@ -65,6 +65,7 @@ class Data(Dataset):
             exit(1)
 
         task = USHCN_DeBrouwer2019(
+            value_norm=self.configs.irregular_value_norm,
             seq_len=self.seq_len - 0.5,
             pred_len=self.pred_len
         )

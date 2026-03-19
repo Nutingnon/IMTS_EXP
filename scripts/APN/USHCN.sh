@@ -2,7 +2,17 @@
 
 echo "Starting APN hyperparameter search script..."
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+cd "${PROJECT_ROOT}" || exit 1
+
+EXTRA_ARGS="$*"
+
 GPU_IDS=(0)
+
+if [[ -n "${EXTRA_ARGS}" ]]; then
+    echo "Extra args: ${EXTRA_ARGS}"
+fi
 
 model_name="APN"
 dataset_root_path="storage/datasets/USHCN"
@@ -13,12 +23,26 @@ pred_len=3
 enc_in=5
 dec_in=5
 c_out=5
-train_epochs=200
-patience=10
+RUN_MODE="${RUN_MODE:-smoke}"
+
+if [[ "${RUN_MODE}" == "smoke" ]]; then
+    train_epochs="${TRAIN_EPOCHS:-1}"
+    patience="${PATIENCE:-1}"
+    itr="${ITR:-1}"
+elif [[ "${RUN_MODE}" == "full" ]]; then
+    train_epochs="${TRAIN_EPOCHS:-200}"
+    patience="${PATIENCE:-10}"
+    itr="${ITR:-5}"
+else
+    echo "Unsupported RUN_MODE='${RUN_MODE}'. Use 'smoke' or 'full'."
+    exit 1
+fi
+
+echo "RUN_MODE=${RUN_MODE}, train_epochs=${train_epochs}, itr=${itr}"
 
 dms=(6)
 lrs=(0.01)
-bss=(32)
+bss=("${BATCH_SIZE:-32}")
 dps=(0.1)
 ps=(100)
 te_dims=(32)
@@ -49,13 +73,14 @@ for te_dim in "${te_dims[@]}"; do
         --train_epochs \"$train_epochs\" \
         --patience \"$patience\" \
         --val_interval 1 \
-        --itr 5 \
+        --itr \"$itr\" \
         --batch_size \"$bs\" \
         --learning_rate \"$lr\" \
         --d_model \"$dm\" \
         --dropout \"$dp\" \
         --apn_npatch \"$p\" \
-        --apn_te_dim \"$te_dim\"" )
+        --apn_te_dim \"$te_dim\" \
+        ${EXTRA_ARGS}" )
 
 done; done; done; done; done; done
 

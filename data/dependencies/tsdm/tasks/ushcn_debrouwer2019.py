@@ -28,6 +28,7 @@ from data.dependencies.tsdm.datasets import USHCN_DeBrouwer2019 as USHCN_DeBrouw
 from data.dependencies.tsdm.tasks.base import BaseTask
 from data.dependencies.tsdm.utils import is_partition
 from data.dependencies.tsdm.utils.strings import repr_namedtuple
+from data.data_provider.irregular_norm import apply_standardization, compute_standardization_stats_from_tensors
 
 
 class Inputs(NamedTuple):
@@ -198,6 +199,7 @@ class USHCN_DeBrouwer2019(BaseTask):
     def __init__(
         self, 
         normalize_time: bool = True,
+        value_norm: str = "legacy_global",
         seq_len: float = 150 - 0.5, 
         pred_len: int = 3, 
         num_folds: int = 1
@@ -208,11 +210,12 @@ class USHCN_DeBrouwer2019(BaseTask):
         self.num_folds = num_folds
 
         self.normalize_time = normalize_time
-        self.IDs = self.dataset.reset_index()["ID"].unique()
+        self.value_norm = value_norm
+        self.IDs = self.raw_dataset.reset_index()["ID"].unique()
 
     @cached_property
-    def dataset(self) -> DataFrame:
-        r"""Load the dataset."""
+    def raw_dataset(self) -> DataFrame:
+        r"""Load the dataset without additional split-aware value normalization."""
         ts = USHCN_DeBrouwer2019_Dataset().dataset
 
         if self.normalize_time:
@@ -223,6 +226,31 @@ class USHCN_DeBrouwer2019(BaseTask):
             ts = ts.set_index(["ID", "Time"])
         ts = ts.dropna(axis=1, how="all").copy()
         return ts
+
+    def _fit_value_stats(self, ids: Sequence[int]):
+        values: list[Tensor] = []
+        for _id in ids:
+            sample = self.raw_dataset.loc[_id]
+            values.append(torch.tensor(sample.values, dtype=torch.float32))
+        return compute_standardization_stats_from_tensors(values)
+
+    def _apply_value_stats(self, dataset: DataFrame, stats) -> DataFrame:
+        normalized = dataset.copy()
+        values = torch.tensor(normalized.values, dtype=torch.float32)
+        normalized.iloc[:, :] = apply_standardization(values, stats).numpy()
+        return normalized
+
+    @cached_property
+    def dataset(self) -> DataFrame:
+        r"""Load the dataset with the configured value normalization mode."""
+        if self.value_norm in {"legacy_global", "none"}:
+            return self.raw_dataset
+
+        if self.value_norm == "train_only":
+            stats = self._fit_value_stats(self.folds[0]["train"])
+            return self._apply_value_stats(self.raw_dataset, stats)
+
+        raise ValueError(f"Unsupported USHCN value normalization mode: {self.value_norm}")
 
     @cached_property
     def folds(self) -> list[dict[str, Sequence[int]]]:

@@ -26,6 +26,7 @@ from data.dependencies.tsdm.encoders import FrameEncoder, MinMaxScaler, Standard
 from data.dependencies.tsdm.tasks.base import BaseTask
 from data.dependencies.tsdm.utils import is_partition
 from data.dependencies.tsdm.utils.strings import repr_namedtuple
+from data.data_provider.irregular_norm import ValueNormStats
 import pdb
 import pandas as pd
 import numpy as np
@@ -218,6 +219,13 @@ class Physionet2012(BaseTask):
     RANDOM_STATE = 0
     test_size = 0.1  # of total
     valid_size = 0.1  # of train split size, i.e. 0.85*0.2=0.17
+    CANONICAL_COLUMNS = [
+        'pH', 'PaCO2', 'PaO2', 'FiO2', 'DiasABP', 'HR', 'MAP', 'SysABP', 'Temp',
+        'GCS', 'Urine', 'Weight', 'HCT', 'BUN', 'Creatinine', 'Glucose', 'HCO3',
+        'Mg', 'Platelets', 'K', 'Na', 'WBC', 'NIDiasABP', 'NIMAP', 'NISysABP',
+        'RespRate', 'ALP', 'ALT', 'AST', 'Bilirubin', 'SaO2', 'Lactate',
+        'Albumin', 'TroponinT', 'Cholesterol', 'TroponinI'
+    ]
 
     encoder: FrameEncoder[Standardizer, dict[Any, MinMaxScaler]]
 
@@ -226,7 +234,8 @@ class Physionet2012(BaseTask):
         normalize_time: bool = True, 
         seq_len: int = 36, 
         pred_len: int = 3, 
-        num_folds: int = 1
+        num_folds: int = 1,
+        value_norm: str = "legacy_global",
     ):
         super().__init__()
         self.prediction_steps = pred_len
@@ -237,7 +246,9 @@ class Physionet2012(BaseTask):
             index_encoders={"Time": MinMaxScaler()},
         )
         self.normalize_time = normalize_time
-        self.IDs = self.dataset.reset_index()["RecordID"].unique()
+        self.value_norm = value_norm
+        self._observation_time_raw = seq_len
+        self.IDs = self.raw_dataset.reset_index()["RecordID"].unique()
 
     def get_mean_value_according_ID(self, IDs):
         ds = Physionet2012_Dataset()
@@ -270,29 +281,71 @@ class Physionet2012(BaseTask):
         return res, cols_
 
     @cached_property
-    def dataset(self) -> DataFrame:
-        r"""Load the dataset."""
+    def raw_dataset(self) -> DataFrame:
+        r"""Load the raw dataset without value normalization."""
         ds = Physionet2012_Dataset()
-        # Standardization is performed over full data slice, including test!
-        # https://github.com/mbilos/neural-flows-experiments/blob/
-        # bd19f7c92461e83521e268c1a235ef845a3dd963/nfe/experiments/gru_ode_bayes/lib/get_data.py#L50-L63
-
-        # Standardize the x-values, min-max scale the t values.
         ts_ = ds.dataset
         tsa = ts_['A'][0]
         tsb = ts_['B'][0]
         tsc = ts_['C'][0]
         ts = pd.concat([tsa, tsb, tsc])
-        self.encoder.fit(ts)
-        ts = self.encoder.encode(ts)
-        index_encoder = self.encoder.index_encoders["Time"]
-        self.observation_time /= (index_encoder.param.xmax + 1)  # type: ignore[assignment]
 
-        # drop values outside 5 sigma range
-        ts = ts[(-5 < ts) & (ts < 5)]
         ts = ts.dropna(axis=1, how="all").copy()
-        return ts        
-        # return ts, catogary
+        return ts
+
+    def _normalize_time_index(self, ts: DataFrame) -> DataFrame:
+        ts = ts.reset_index()
+        t_max = ts["Time"].max()
+        if self.normalize_time:
+            self.observation_time = self._observation_time_raw / (t_max + 1)
+            ts["Time"] = ts["Time"] / (t_max + 1)
+        else:
+            self.observation_time = self._observation_time_raw
+        return ts.set_index(["RecordID", "Time"])
+
+    def _select_canonical_columns(self, ts: DataFrame) -> DataFrame:
+        available_columns = [column for column in self.CANONICAL_COLUMNS if column in ts.columns]
+        return ts.loc[:, available_columns].copy()
+
+    def _fit_value_stats(self, ts: DataFrame, ids: Sequence[int]) -> ValueNormStats:
+        train_values = ts.loc[ids].values
+        mean = np.nanmean(train_values, axis=0)
+        std = np.nanstd(train_values, axis=0)
+        std = np.where((std == 0) | np.isnan(std), 1.0, std)
+        return ValueNormStats(
+            mean=torch.as_tensor(mean, dtype=torch.float32),
+            std=torch.as_tensor(std, dtype=torch.float32),
+        )
+
+    def _apply_value_stats(self, ts: DataFrame, stats: ValueNormStats) -> DataFrame:
+        normalized = (ts - stats.mean.numpy()) / stats.std.numpy()
+        normalized = normalized[(-5 < normalized) & (normalized < 5)]
+        return normalized.dropna(axis=1, how="all").copy()
+
+    @cached_property
+    def dataset(self) -> DataFrame:
+        r"""Load the dataset according to the configured normalization mode."""
+        ts = self.raw_dataset.copy()
+
+        if self.value_norm == "legacy_global":
+            self.encoder.fit(ts)
+            ts = self.encoder.encode(ts)
+            ts = ts[(-5 < ts) & (ts < 5)]
+            ts = ts.dropna(axis=1, how="all").copy()
+            index_encoder = self.encoder.index_encoders["Time"]
+            self.observation_time = self._observation_time_raw / (index_encoder.param.xmax + 1)
+            return ts
+
+        ts = self._normalize_time_index(ts)
+
+        if self.value_norm == "none":
+            return self._select_canonical_columns(ts)
+
+        if self.value_norm == "train_only":
+            stats = self._fit_value_stats(ts, self.folds[0]["train"])
+            return self._select_canonical_columns(self._apply_value_stats(ts, stats))
+
+        raise ValueError(f"Unsupported P12 value normalization mode: {self.value_norm}")
 
     @cached_property
     def folds(self) -> list[dict[str, Sequence[int]]]:

@@ -256,40 +256,58 @@ Until the code is changed, the following statements should be treated as canonic
 - MIMIC-III currently depends on a preprocessed source file with global normalization already baked in.
 - HumanActivity and USHCN still require careful protocol alignment before any fair comparison to external baselines.
 
-## 8. Planned Normalization Fixes
+## 8. Implemented Normalization Modes
 
-The following improvements are not fully implemented yet. They are the intended next step.
+The repository now exposes a runtime option for irregular-dataset value normalization:
 
-### 8.1 Add an explicit normalization mode option
+- `--irregular_value_norm legacy_global`
+- `--irregular_value_norm none`
+- `--irregular_value_norm train_only`
 
-The project should expose a runtime option with at least two safe modes for irregular datasets:
+Current behavior by mode:
 
-1. `none`
-     - disable value normalization entirely
-     - useful for ablation and for preserving raw physical units
-2. `train_only`
-     - fit normalization statistics on the training split only
-     - reuse those statistics for validation and test
-     - this is the minimum requirement for removing the current leakage path
+- `legacy_global`
+    - preserves the old behavior for backward compatibility
+    - P12 keeps the historical full-dataset standardization path
+    - MIMIC keeps the historical `VALUENORM`-based path
+- `none`
+    - disables value normalization for the irregular dataset path
+    - useful for ablation and raw-scale evaluation
+- `train_only`
+    - fits value standardization statistics on the training split only
+    - reuses those statistics for validation and test
+    - this is the mode intended to remove the confirmed leakage in the current P12 path
 
-An optional third mode can be considered later if needed:
-
-3. `legacy_global`
-     - preserve current behavior for backward comparison only
-     - should be clearly marked as non-causal and leakage-prone
-
-### 8.2 Dataset-specific implementation notes
+### 8.1 Current implementation scope
 
 - P12:
-    - move value normalization fitting to training IDs only
-    - apply the fitted transform to val/test without refitting
+    - `train_only` is implemented in the task layer
+    - `none` is implemented in the task layer
 - MIMIC-III:
-    - either support a raw-input path and normalize inside APN using train-only statistics
-    - or regenerate the preprocessed source file with train-only statistics per split
+    - `train_only` now reconstructs values from raw `VALUENUM` in `complete_tensor.csv`
+    - `none` also uses raw `VALUENUM`
+    - `legacy_global` preserves the historical `VALUENORM` path
 - HumanActivity:
-    - add a clear normalization switch and document the evaluation scale
+    - `train_only` is implemented in the dataset wrapper using train-split value statistics
+    - `none` and `legacy_global` both keep the previous raw-value behavior
 - USHCN:
-    - keep feature normalization optional, but align sequence-history interpretation with the comparison target
+    - `train_only` is now implemented in the task layer using train-split value statistics
+    - `none` and `legacy_global` both keep the vendored `small_chunked_sporadic.csv` value representation
+
+### 8.2 Remaining caveats
+
+- P12:
+    - `train_only` removes the confirmed full-dataset value-standardization leakage
+    - time normalization still follows the task's existing timeline scaling behavior
+- MIMIC-III:
+    - `train_only` avoids consuming pre-normalized `VALUENORM`, but still depends on the same upstream `complete_tensor.csv` source file layout
+- HumanActivity:
+    - current `train_only` mode standardizes values by train-split statistics, but this still needs fresh experiments to quantify metric impact
+- USHCN:
+    - the switch is now wired through the APN task path, so `train_only` applies train-split-fitted value standardization
+    - however, the underlying `small_chunked_sporadic.csv` file is already an upstream processed representation rather than original raw physical-unit measurements
+    - therefore `none` for USHCN means "disable extra APN-side normalization" rather than "recover untouched raw units"
+    - sequence-history interpretation and comparison-protocol alignment remain separate risks beyond value normalization
 
 ### 8.3 Reporting rules after the fix
 

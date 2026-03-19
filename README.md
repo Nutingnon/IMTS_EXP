@@ -66,6 +66,8 @@ Current code note:
 
 - P12 currently uses `Standardizer()` for feature values and `MinMaxScaler()` for time inside `data/dependencies/tsdm/tasks/P12.py`.
 - That value standardization is fitted on the full dataset rather than the training split only, so current P12 results are affected by data leakage.
+- USHCN is loaded from the vendored `tsdm` preprocessed file `small_chunked_sporadic.csv`.
+- That source file is already an upstream processed representation rather than raw physical-unit measurements, so `--irregular_value_norm none` for USHCN means "do not apply an extra APN-side normalization" rather than "recover original raw units".
 
 #### 2.2 MIMIC Dataset
 Due to privacy regulations, the **MIMIC** dataset requires credentialed access. Please follow the steps below to prepare it manually:
@@ -95,11 +97,23 @@ The main reproduction gap in this repository is the normalization protocol for i
 
 - `t-PatchGNN` comparisons typically assume train-set-fitted Min-Max normalization for relevant datasets.
 - The current APN code path does not match that behavior consistently.
-- Planned follow-up work is to add explicit normalization modes for irregular datasets, including:
-  - no normalization
-  - train-only normalization
+- The repository now exposes an explicit irregular-dataset value normalization switch:
+  - `--irregular_value_norm legacy_global`
+  - `--irregular_value_norm none`
+  - `--irregular_value_norm train_only`
 
-Those options are not fully implemented yet. See [REPRODUCTION_DISCREPANCIES.md](./REPRODUCTION_DISCREPANCIES.md) before interpreting P12 or MIMIC results as paper-level comparisons.
+Recommended usage:
+
+- use `train_only` when you want train-split-fitted value standardization without leakage
+- use `none` when you want to keep original value scale
+- keep `legacy_global` only for backward comparison with older runs
+
+Dataset caveat:
+
+- For P12, MIMIC-III, and HumanActivity, the new switch directly changes the APN-side value normalization path.
+- For USHCN, the switch is now wired in as well, but the dataset still starts from the vendored `small_chunked_sporadic.csv` representation; `none` disables extra APN-side normalization, not the upstream preprocessing embodied in that file.
+
+See [REPRODUCTION_DISCREPANCIES.md](./REPRODUCTION_DISCREPANCIES.md) before interpreting P12 or MIMIC results as paper-level comparisons.
 
 ### 3. Train and evaluate model
 
@@ -117,6 +131,12 @@ For a shorter local validation run:
 
 ```shell
 RUN_PROFILE=medium ./scripts/APN/P12.sh
+```
+
+Example with train-only irregular value normalization:
+
+```shell
+RUN_PROFILE=medium ./scripts/APN/P12.sh --irregular_value_norm train_only
 ```
 
 ## Results

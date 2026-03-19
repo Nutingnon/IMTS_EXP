@@ -25,9 +25,11 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 
 from data.dependencies.tsdm.datasets import MIMIC_III_DeBrouwer2019 as MIMIC_III_Dataset
+from data.dependencies.tsdm.encoders import TripletDecoder
 from data.dependencies.tsdm.tasks.base import BaseTask
 from data.dependencies.tsdm.utils import is_partition
 from data.dependencies.tsdm.utils.strings import repr_namedtuple
+from data.data_provider.irregular_norm import ValueNormStats
 
 
 class Inputs(NamedTuple):
@@ -248,33 +250,92 @@ class MIMIC_III_DeBrouwer2019(BaseTask):
         normalize_time: bool = True, 
         seq_len: float = (36 - 0.5) * 2, 
         pred_len: int = 3 * 2, 
-        num_folds: int = 1
+        num_folds: int = 1,
+        value_norm: str = "legacy_global",
     ):
         super().__init__()
         self.prediction_steps = pred_len
         self.observation_time = seq_len
         self.num_folds = num_folds
         self.normalize_time = normalize_time
-        self.IDs = self.dataset.reset_index()["UNIQUE_ID"].unique()
+        self.value_norm = value_norm
+        self._observation_time_raw = seq_len
+        self.IDs = self.raw_dataset.reset_index()["UNIQUE_ID"].unique()
+
+    @cached_property
+    def raw_dataset(self) -> DataFrame:
+        r"""Load the raw-value dataset using VALUENUM from complete_tensor.csv."""
+        dataset = MIMIC_III_Dataset()
+        ts = pd.read_csv(dataset.rawdata_paths)
+        ts = ts.sort_values(by=["UNIQUE_ID", "TIME_STAMP"])
+        ts = ts.astype(
+            {
+                "UNIQUE_ID": "int32",
+                "TIME_STAMP": "int32",
+                "LABEL_CODE": "int32",
+                "VALUENUM": "float32",
+            }
+        )
+        ts = ts[["UNIQUE_ID", "TIME_STAMP", "LABEL_CODE", "VALUENUM"]]
+        ts = ts.reset_index(drop=True)
+        ts = ts.set_index(["UNIQUE_ID", "TIME_STAMP"])
+        ts = ts.sort_index()
+        encoder = TripletDecoder(value_name="VALUENUM", var_name="LABEL_CODE")
+        encoder.fit(ts)
+        ts = encoder.encode(ts)
+        ts.columns = ts.columns.astype("string")
+        ts = ts.dropna(axis=1, how="all").copy()
+        return ts
+
+    def _normalize_time_index(self, ts: DataFrame) -> DataFrame:
+        ts = ts.reset_index()
+        if self.normalize_time:
+            t_max = ts["TIME_STAMP"].max()
+            self.observation_time = self._observation_time_raw / t_max
+            ts["TIME_STAMP"] = ts["TIME_STAMP"] / t_max
+        else:
+            self.observation_time = self._observation_time_raw
+        return ts.set_index(["UNIQUE_ID", "TIME_STAMP"])
+
+    def _fit_value_stats(self, ts: DataFrame, ids: Sequence[int]) -> ValueNormStats:
+        train_values = ts.loc[ids].values
+        mean = np.nanmean(train_values, axis=0)
+        std = np.nanstd(train_values, axis=0)
+        std = np.where((std == 0) | np.isnan(std), 1.0, std)
+        return ValueNormStats(
+            mean=torch.as_tensor(mean, dtype=torch.float32),
+            std=torch.as_tensor(std, dtype=torch.float32),
+        )
+
+    def _apply_value_stats(self, ts: DataFrame, stats: ValueNormStats) -> DataFrame:
+        normalized = (ts - stats.mean.numpy()) / stats.std.numpy()
+        return normalized.dropna(axis=1, how="all").copy()
 
     @cached_property
     def dataset(self) -> DataFrame:
-        r"""Load the dataset."""
-        ts = MIMIC_III_Dataset()["timeseries"]
-        # https://github.com/edebrouwer/gru_ode_bayes/blob/aaff298c0fcc037c62050c14373ad868bffff7d2/data_preproc/Climate/generate_folds.py#L10-L14
-        if self.normalize_time:
-            ts = ts.reset_index()
-            t_max = ts["TIME_STAMP"].max()
-            self.observation_time /= t_max
-            ts["TIME_STAMP"] /= t_max
-            ts = ts.set_index(["UNIQUE_ID", "TIME_STAMP"])
-        ts = ts.dropna(axis=1, how="all").copy()
-        # catogary = np.load('clusters.npy', allow_pickle=True).item()
-        # catogary = pd.DataFrame({
-        #     "idx": catogary['idx'],
-        #     'c': catogary['c']
-        # })
-        return ts
+        r"""Load the dataset according to the configured normalization mode."""
+        if self.value_norm == "legacy_global":
+            ts = MIMIC_III_Dataset()["timeseries"]
+            if self.normalize_time:
+                ts = ts.reset_index()
+                t_max = ts["TIME_STAMP"].max()
+                self.observation_time = self._observation_time_raw / t_max
+                ts["TIME_STAMP"] /= t_max
+                ts = ts.set_index(["UNIQUE_ID", "TIME_STAMP"])
+            else:
+                self.observation_time = self._observation_time_raw
+            return ts.dropna(axis=1, how="all").copy()
+
+        ts = self._normalize_time_index(self.raw_dataset.copy())
+
+        if self.value_norm == "none":
+            return ts
+
+        if self.value_norm == "train_only":
+            stats = self._fit_value_stats(ts, self.folds[0]["train"])
+            return self._apply_value_stats(ts, stats)
+
+        raise ValueError(f"Unsupported MIMIC value normalization mode: {self.value_norm}")
     
     def get_mean_value_according_ID(self, IDs):
         datas = []

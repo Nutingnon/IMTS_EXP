@@ -10,6 +10,7 @@ from utils.globals import logger
 from utils.ExpConfigs import ExpConfigs
 from utils.configs import configs
 from data.dependencies.HumanActivity.HumanActivity import HumanActivity, Activity_time_chunk
+from data.data_provider.irregular_norm import compute_standardization_stats_from_tensors, apply_standardization
 
 class Data(Dataset):
     def __init__(
@@ -66,6 +67,25 @@ class Data(Dataset):
         train_data = Activity_time_chunk(train_data, self.configs)
         val_data = Activity_time_chunk(val_data, self.configs)
         test_data = Activity_time_chunk(test_data, self.configs)
+
+        norm_mode = self.configs.irregular_value_norm
+        if norm_mode == "train_only":
+            stats = compute_standardization_stats_from_tensors([sample["x"] for sample in train_data])
+
+            def normalize_samples(samples):
+                normalized_samples = []
+                for sample in samples:
+                    normalized_sample = sample.copy()
+                    normalized_sample["x"] = apply_standardization(sample["x"], stats)
+                    normalized_sample["y"] = apply_standardization(sample["y"], stats)
+                    normalized_samples.append(normalized_sample)
+                return normalized_samples
+
+            train_data = normalize_samples(train_data)
+            val_data = normalize_samples(val_data)
+            test_data = normalize_samples(test_data)
+        elif norm_mode not in {"legacy_global", "none"}:
+            raise ValueError(f"Unsupported HumanActivity value normalization mode: {norm_mode}")
 
         if self.flag != "val":
             # val set will follow the setting of train set

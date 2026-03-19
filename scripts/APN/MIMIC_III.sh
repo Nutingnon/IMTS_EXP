@@ -2,7 +2,17 @@
 
 echo "Starting APN hyperparameter search script..."
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+cd "${PROJECT_ROOT}" || exit 1
+
+EXTRA_ARGS="$*"
+
 GPU_IDS=(0)
+
+if [[ -n "${EXTRA_ARGS}" ]]; then
+    echo "Extra args: ${EXTRA_ARGS}"
+fi
 
 model_name="APN"
 dataset_root_path="storage/datasets/MIMIC_III"
@@ -55,7 +65,8 @@ for te_dim in "${te_dims[@]}"; do
         --d_model \"$dm\" \
         --dropout \"$dp\" \
         --apn_npatch \"$p\" \
-        --apn_te_dim \"$te_dim\"" )
+        --apn_te_dim \"$te_dim\" \
+        ${EXTRA_ARGS}" )
 
 done; done; done; done; done; done
 

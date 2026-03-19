@@ -26,6 +26,7 @@ class ExpConfigs:
     collate_fn: str
     augmentation_ratio: int
     missing_rate: float
+    irregular_value_norm: str
     train_val_loader_shuffle: int
     train_val_loader_drop_last: int
     test_inference_time: int

@@ -65,7 +65,8 @@ class Data(Dataset):
 
         task = MIMIC_III_DeBrouwer2019(
             seq_len=self.seq_len - 0.5,
-            pred_len=self.pred_len
+            pred_len=self.pred_len,
+            value_norm=self.configs.irregular_value_norm,
         )
 
         if self.flag != "val":

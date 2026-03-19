@@ -8,6 +8,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${PROJECT_ROOT}" || exit 1
 
+EXTRA_ARGS="$*"
+
 mkdir -p logs
 
 # Optional proxy for dataset download.
@@ -34,6 +36,9 @@ if (( ${#GPU_IDS_ARR[@]} == 0 )); then
 fi
 
 echo "Using GPU IDs: ${GPU_IDS_ARR[*]}"
+if [[ -n "${EXTRA_ARGS}" ]]; then
+    echo "Extra args: ${EXTRA_ARGS}"
+fi
 
 # 模型和数据集的固定参数
 model_name="APN"
@@ -153,7 +158,8 @@ for te_dim in "${te_dims[@]}"; do
         --apn_te_dim \"$te_dim\" \
         --num_workers \"$num_workers\" \
         --use_multi_gpu 0 \
-        --gpu_id 0" )
+        --gpu_id 0 \
+        ${EXTRA_ARGS}" )
 
 done; done; done; done; done; done
 
