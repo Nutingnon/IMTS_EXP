@@ -43,6 +43,7 @@ gpu_ids: null
 hidden_layers: 1
 individual: 0
 informer_distil: 1
+irregular_value_norm: legacy_global
 is_training: 1
 itr: 5
 itr_i: 0

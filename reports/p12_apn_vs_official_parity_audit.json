@@ -1,0 +1,258 @@
+{
+  "entry_args": {
+    "apn": {
+      "gpu_id": "0",
+      "is_training": "1",
+      "collate_fn": "collate_fn_patch",
+      "patch_len": "6",
+      "n_heads": "1",
+      "loss": "MSE",
+      "use_multi_gpu": "0",
+      "dataset_root_path": "storage/datasets/P12",
+      "model_id": "$model_name",
+      "model_name": "$model_name",
+      "dataset_name": "$dataset_name",
+      "features": "M",
+      "seq_len": "36",
+      "pred_len": "3",
+      "enc_in": "36",
+      "c_out": "36",
+      "dec_in": "36",
+      "train_epochs": "300",
+      "patience": "5",
+      "val_interval": "1",
+      "itr": "5",
+      "batch_size": "32",
+      "learning_rate": "0.001"
+    },
+    "official": {
+      "dataset": "physionet",
+      "state": "def",
+      "history": "24",
+      "patience": "10",
+      "batch_size": "32",
+      "lr": "1e-3",
+      "patch_size": "8",
+      "stride": "8",
+      "nhead": "1",
+      "tf_layer": "1",
+      "nlayer": "1",
+      "te_dim": "10",
+      "node_dim": "10",
+      "hid_dim": "64",
+      "outlayer": "Linear",
+      "seed": "$seed",
+      "gpu": "0"
+    }
+  },
+  "key_param_pairs": {
+    "task_window": {
+      "apn_seq_len": "36",
+      "apn_pred_len": "3",
+      "apn_patch_len": "6",
+      "off_history": "24",
+      "off_patch_size": "8",
+      "off_stride": "8"
+    },
+    "optimization": {
+      "apn_lr": "0.001",
+      "apn_batch_size": "32",
+      "apn_patience": "5",
+      "off_lr": "1e-3",
+      "off_batch_size": "32",
+      "off_patience": "10"
+    },
+    "model_core": {
+      "apn_n_heads": "1",
+      "off_nhead": "1",
+      "off_tf_layer": "1",
+      "off_nlayer": "1",
+      "off_hid_dim": "64",
+      "off_te_dim": "10",
+      "off_node_dim": "10"
+    }
+  },
+  "features": {
+    "apn_feature_count": 36,
+    "official_feature_count": 41,
+    "apn_only": [],
+    "official_only": [
+      "Age",
+      "Gender",
+      "Height",
+      "ICUType",
+      "MechVent"
+    ]
+  },
+  "split_evidence": {
+    "apn": {
+      "train_test_split": [
+        "L18: from sklearn.model_selection import train_test_split",
+        "L357: train_idx, test_idx = train_test_split(",
+        "L360: train_idx, valid_idx = train_test_split("
+      ],
+      "shuffle=False": [
+        "L358: self.IDs, test_size=self.test_size, random_state=self.RANDOM_STATE, shuffle=False",
+        "L361: train_idx, test_size=self.valid_size, random_state=self.RANDOM_STATE, shuffle=False"
+      ],
+      "test_size": [
+        "L220: test_size = 0.1  # of total",
+        "L358: self.IDs, test_size=self.test_size, random_state=self.RANDOM_STATE, shuffle=False",
+        "L361: train_idx, test_size=self.valid_size, random_state=self.RANDOM_STATE, shuffle=False"
+      ],
+      "valid_size": [
+        "L221: valid_size = 0.1  # of train split size, i.e. 0.85*0.2=0.17",
+        "L361: train_idx, test_size=self.valid_size, random_state=self.RANDOM_STATE, shuffle=False"
+      ],
+      "RANDOM_STATE": [
+        "L219: RANDOM_STATE = 0",
+        "L358: self.IDs, test_size=self.test_size, random_state=self.RANDOM_STATE, shuffle=False",
+        "L361: train_idx, test_size=self.valid_size, random_state=self.RANDOM_STATE, shuffle=False"
+      ]
+    },
+    "official": {
+      "train_test_split": [
+        "L38: seen_data, test_data = model_selection.train_test_split(total_dataset, train_size= 0.8, random_state = 42, shuffle = True)",
+        "L39: train_data, val_data = model_selection.train_test_split(seen_data, train_size= 0.75, random_state = 42, shuffle = False)",
+        "L100: seen_data, test_data = model_selection.train_test_split(total_dataset, train_size= 0.8, random_state = 42, shuffle = True)",
+        "L101: train_data, val_data = model_selection.train_test_split(seen_data, train_size= 0.75, random_state = 42, shuffle = False)",
+        "L164: seen_data, test_data = model_selection.train_test_split(total_dataset, train_size= 0.8, random_state = 42, shuffle = True)",
+        "L165: train_data, val_data = model_selection.train_test_split(seen_data, train_size= 0.75, random_state = 42, shuffle = False)"
+      ],
+      "random_state\\s*=\\s*42": [
+        "L38: seen_data, test_data = model_selection.train_test_split(total_dataset, train_size= 0.8, random_state = 42, shuffle = True)",
+        "L39: train_data, val_data = model_selection.train_test_split(seen_data, train_size= 0.75, random_state = 42, shuffle = False)",
+        "L100: seen_data, test_data = model_selection.train_test_split(total_dataset, train_size= 0.8, random_state = 42, shuffle = True)",
+        "L101: train_data, val_data = model_selection.train_test_split(seen_data, train_size= 0.75, random_state = 42, shuffle = False)",
+        "L164: seen_data, test_data = model_selection.train_test_split(total_dataset, train_size= 0.8, random_state = 42, shuffle = True)",
+        "L165: train_data, val_data = model_selection.train_test_split(seen_data, train_size= 0.75, random_state = 42, shuffle = False)"
+      ],
+      "train_size\\s*=\\s*0\\.8": [
+        "L38: seen_data, test_data = model_selection.train_test_split(total_dataset, train_size= 0.8, random_state = 42, shuffle = True)",
+        "L100: seen_data, test_data = model_selection.train_test_split(total_dataset, train_size= 0.8, random_state = 42, shuffle = True)",
+        "L164: seen_data, test_data = model_selection.train_test_split(total_dataset, train_size= 0.8, random_state = 42, shuffle = True)"
+      ],
+      "train_size\\s*=\\s*0\\.75": [
+        "L39: train_data, val_data = model_selection.train_test_split(seen_data, train_size= 0.75, random_state = 42, shuffle = False)",
+        "L101: train_data, val_data = model_selection.train_test_split(seen_data, train_size= 0.75, random_state = 42, shuffle = False)",
+        "L165: train_data, val_data = model_selection.train_test_split(seen_data, train_size= 0.75, random_state = 42, shuffle = False)"
+      ],
+      "shuffle\\s*=\\s*True": [
+        "L38: seen_data, test_data = model_selection.train_test_split(total_dataset, train_size= 0.8, random_state = 42, shuffle = True)",
+        "L57: train_dataloader = DataLoader(train_data, batch_size= batch_size, shuffle=True,",
+        "L100: seen_data, test_data = model_selection.train_test_split(total_dataset, train_size= 0.8, random_state = 42, shuffle = True)",
+        "L124: train_dataloader = DataLoader(train_data, batch_size= batch_size, shuffle=True,",
+        "L164: seen_data, test_data = model_selection.train_test_split(total_dataset, train_size= 0.8, random_state = 42, shuffle = True)",
+        "L191: train_dataloader = DataLoader(train_data, batch_size= batch_size, shuffle=True,"
+      ],
+      "shuffle\\s*=\\s*False": [
+        "L39: train_data, val_data = model_selection.train_test_split(seen_data, train_size= 0.75, random_state = 42, shuffle = False)",
+        "L60: val_dataloader = DataLoader(val_data, batch_size= batch_size, shuffle=False,",
+        "L63: test_dataloader = DataLoader(test_data, batch_size = batch_size, shuffle=False,",
+        "L101: train_data, val_data = model_selection.train_test_split(seen_data, train_size= 0.75, random_state = 42, shuffle = False)",
+        "L126: val_dataloader = DataLoader(val_data, batch_size= batch_size, shuffle=False,",
+        "L128: test_dataloader = DataLoader(test_data, batch_size = batch_size, shuffle=False,",
+        "L165: train_data, val_data = model_selection.train_test_split(seen_data, train_size= 0.75, random_state = 42, shuffle = False)",
+        "L194: val_dataloader = DataLoader(val_data, batch_size= batch_size, shuffle=False,",
+        "L197: test_dataloader = DataLoader(test_data, batch_size = batch_size, shuffle=False,"
+      ]
+    }
+  },
+  "normalization_evidence": {
+    "apn": {
+      "legacy_global": [
+        "L238: value_norm: str = \"legacy_global\",",
+        "L330: if self.value_norm == \"legacy_global\":"
+      ],
+      "Standardizer": [
+        "L25: from data.dependencies.tsdm.encoders import FrameEncoder, MinMaxScaler, Standardizer",
+        "L230: encoder: FrameEncoder[Standardizer, dict[Any, MinMaxScaler]]",
+        "L245: column_encoders=Standardizer(),"
+      ],
+      "MinMaxScaler": [
+        "L25: from data.dependencies.tsdm.encoders import FrameEncoder, MinMaxScaler, Standardizer",
+        "L230: encoder: FrameEncoder[Standardizer, dict[Any, MinMaxScaler]]",
+        "L246: index_encoders={\"Time\": MinMaxScaler()},"
+      ],
+      "self\\.encoder\\.fit": [
+        "L331: self.encoder.fit(ts)"
+      ],
+      "\\(-5 <": [
+        "L322: normalized = normalized[(-5 < normalized) & (normalized < 5)]",
+        "L333: ts = ts[(-5 < ts) & (ts < 5)]"
+      ],
+      "normalize_time": [
+        "L234: normalize_time: bool = True,",
+        "L248: self.normalize_time = normalize_time",
+        "L296: def _normalize_time_index(self, ts: DataFrame) -> DataFrame:",
+        "L299: if self.normalize_time:",
+        "L339: ts = self._normalize_time_index(ts)"
+      ]
+    },
+    "official": {
+      "get_data_min_max": [
+        "L50: data_min, data_max, time_max = get_data_min_max(seen_data, device) # (n_dim,), (n_dim,)",
+        "L111: data_min, data_max, time_max = get_data_min_max(seen_data, device) # (n_dim,), (n_dim,)",
+        "L176: data_min, data_max, _ = get_data_min_max(seen_data, device) # (n_dim,), (n_dim,)"
+      ],
+      "normalize_masked_data": [],
+      "normalize_masked_tp": []
+    }
+  },
+  "training_eval_evidence": {
+    "apn_exp": {
+      "DelayedStepDecayLR": [
+        "L66: elif self.configs.lr_scheduler == 'DelayedStepDecayLR':"
+      ],
+      "EarlyStopping": [
+        "L23: from utils.tools import EarlyStopping, test_params_and_flops, test_peak_gpu_memory, test_training_step_time, test_inference_step_time",
+        "L268: early_stopping = EarlyStopping(patience=self.configs.patience, verbose=True)"
+      ],
+      "vali\\(": [
+        "L154: def vali(",
+        "L335: vali_loss = self.vali("
+      ],
+      "metric\\(": [
+        "L622: metrics = metric(**array_dict)"
+      ],
+      "test\\(": [
+        "L367: def test(self) -> None:",
+        "L593: outputs: dict[str, Tensor] = model_test("
+      ]
+    },
+    "apn_main": {
+      "for i in range\\(configs\\.itr\\)": [
+        "L53: for i in range(configs.itr):"
+      ],
+      "exp\\.train\\(\\)": [
+        "L47: exp.train()",
+        "L61: exp.train()"
+      ],
+      "exp\\.test\\(\\)": [
+        "L48: exp.test()",
+        "L64: exp.test()",
+        "L67: exp.test()"
+      ]
+    },
+    "official": {
+      "best_val_mse": [
+        "L121: best_val_mse = np.inf",
+        "L141: if(val_res[\"mse\"] < best_val_mse):",
+        "L142: best_val_mse = val_res[\"mse\"]"
+      ],
+      "if\\(val_res\\[\\\"mse\\\"\\] < best_val_mse\\)": [
+        "L141: if(val_res[\"mse\"] < best_val_mse):"
+      ],
+      "test_res = evaluation": [
+        "L144: test_res = evaluation(model, data_obj[\"test_dataloader\"], data_obj[\"n_test_batches\"])"
+      ],
+      "patience": [
+        "L31: parser.add_argument('--patience', type=int, default=10, help=\"patience for early stop\")",
+        "L156: if(itr - best_iter >= args.patience):"
+      ],
+      "optimizer = optim\\.Adam": [
+        "L116: optimizer = optim.Adam(model.parameters(), lr=args.lr)"
+      ]
+    }
+  }
+}
